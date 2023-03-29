@@ -1,0 +1,196 @@
+---
+title: "STA206 Fall 2022: Quiz"
+author: "Sirapat Watakajaturaphon"
+output: html_document
+---
+
+
+
+**Instructions**:  <br>
+
+* In this quiz, you will be asked to perform some  tasks in R <br>
+* You should submit a .html (preferred format) or .docx file. 
+*  You should only include the output that is directly related to answering the questions. A flood of unprocessed raw output from R may result in penalties.  
+
+In *Quiz_data.Rdata* you will find a data set called *data* with three variables: *Y* and *X1, X2*. For the following, **you should use the original data and no standardization should be applied**. 
+
+
+* **(a). Load the data into the R workspace. How many observations are there in this data?  **<br>
+
+```{r}
+load('Quiz_data.Rdata')
+colnames(data) = c('Y','X1','X2')
+n = nrow(data)
+n
+```
+There are $n=100$ observations in this data.
+
+  
+* **(b). What is the type of each variable? For each variable, draw one plot to depict its distribution. Arrange these plots into one multiple paneled graph. **<br> 
+
+All three variables are numeric (integer).
+
+```{r}
+str(data)
+sapply(data, class)
+```
+
+```{r}
+par(mfrow=c(2,2))
+for(i in 1:3) {
+hist(data[,i], main=paste("Histogram of", names(data)[i]), xlab=paste(names(data)[i]))}
+```
+The variable $Y$ is right-skewed. $X_1$ and $X_2$ appear to be pretty bell-shaped curve and symmetry.  
+
+* **(c). Draw the scatter plot matrix and obtain the correlation matrix for these three variables. Briefly describe how *Y* appears to be related to *X1* and *X2*. **<br>
+
+```{r}
+# scatter plot matrix
+pairs(data)
+
+# correlation matrix
+cor(data)
+```
+ 
+$Y$ appears to have a moderate linear relationship with $X_1$ and $X_2$.
+
+* **(d). Fit a first-order model with *Y* as the response variable and *X1, X2* as the predictors (referred to as Model 1). How many regression coefficients are there in Model 1? **<br>
+
+```{r}
+# first order model with 2 predictors
+Model1 = lm(Y ~ X1 + X2, data=data)
+p = length(Model1$coef)
+p
+```
+
+There are $p=3$ regression coefficients in Model 1, $\beta_0,\beta_1,\beta_2$.
+
+
+* **(e). Conduct model diagnostics for Model 1 and comment on how well model assumptions hold. **<br>
+
+```{r}
+par(mfrow=c(2,2))
+plot(Model1)
+```
+
+```{r}
+boxplot(Model1$residuals, horizontal = T, main='Residuals box plot')
+```
+
+The model assumptions do not hold well:
+
+- The residuals vs fitted plot. We can see a clear nonlinear pattern (so, linearity may be violated). The points spread fairly equally along the X-axis (so, constant variance assumption seems to hold).
+
+- The Normal QQ plot. Many points on the right tail deviates from the line (so, normality appears to be violated).
+
+- There are some outliers.
+
+
+* **(f). Fit a 2nd-order polynomial regression model with *Y* as the response variable and *X1, X2* as the predictors (referred to Model 2).   Calculate the variance inflation factors for this model. Does there appears to be strong multicollinearity? Explain briefly.**<br>  
+
+Model 2: 
+$$
+Y=\beta_0+\beta_1X_1+\beta_2X_1^2+\beta_3X_2+\beta_4X_2^2+\beta_5X_1X_2+\epsilon
+$$
+
+```{r}
+# second order polynomial model with 2 predictors
+Model2 = lm(Y ~ X1 + I(X1^2) + X2 + I(X2^2) + X1:X2, data=data)
+summary(Model2)
+```
+
+```{r}
+# VIF
+# Method 1: formula
+r1 = summary(lm(X1    ~  I(X1^2) + X2 + I(X2^2) + X1:X2, data=data))$r.squared
+r2 = summary(lm(X1^2  ~  X1 + X2 + I(X2^2) + X1:X2,      data=data))$r.squared
+r3 = summary(lm(X2    ~  X1 + I(X1)^2 + I(X2^2) + X1:X2, data=data))$r.squared
+r4 = summary(lm(X2^2  ~  X1 + I(X1^2) + X2 + X1:X2,      data=data))$r.squared
+r5 = summary(lm(X1*X2 ~  X1 + I(X1^2) + X2 + I(X2^2),    data=data))$r.squared
+1/(1-c(r1,r2,r3,r4,r5))
+
+# Method 2: X* matrix
+df = with(data, data.frame(X1, X1^2, X2, X2^2, X1*X2))
+Xstar = 1/sqrt(n-1)*apply(df,2, function(x){ (x-mean(x))/sd(x) })
+colMeans(Xstar)     # must be very close to zero
+apply(Xstar, 2, sd) # must be very close to 1/sqrt(n-1)
+1/sqrt(n-1)
+
+rXX.ins = solve( t(Xstar) %*% Xstar )
+diag(rXX.ins)
+```
+
+
+Yes, there seem to be strong multicollinearity because $VIF_k$ are much larger then 10 for $k=3,4$.
+
+
+* **(g). Conduct model diagnostics for Model 2. Do model assumptions appear to hold better under Model 2 compared to under Model 1?  Explain briefly.  **<br>
+
+```{r}
+par(mfrow=c(2,2))
+plot(Model2)
+```
+
+The model assumptions appear to hold better under Model 2 compared to under Model 1. 
+
+- The residuals vs fitted plot. There is no particular nonlinear pattern. 
+
+- The Normal QQ plot. Almost all points fall on a straight line (so, normality holds).
+
+- No severe outliers are present.
+
+* **(h). Under Model 2, obtain the 99% confidence interval for the mean response when $X1=X2=0$. **<br>
+
+```{r}
+# 99% confidence interval for the mean response
+Xnew = data.frame(X1=0,X2=0)
+predict(Model2, Xnew, interval = 'confidence', level=0.99)
+```
+
+The 99\% confidence interval for the mean response when $X1=X2=0$ is [3.417,7.100].
+
+
+* **(i). At the significance level 0.01, test whether or not all terms involving *X2*  may be simultaneously dropped out of Model 2. State your conclusion.  **<br> 
+
+Test 
+
+$$
+H_0:\beta_3=\beta_4=\beta_5=0\quad{\rm vs}\quad H_1:\beta_3\neq0\hspace{1mm}{\rm or}\hspace{1mm}\beta_4\neq0\hspace{1mm}{\rm or}\hspace{1mm}\beta_5\neq0
+$$
+
+```{r}
+# test whether reduced model vs full model is preferred via the anova function
+reduced =  lm(Y ~ X1 + I(X1^2), data=data)
+anova(reduced, Model2)
+
+# alternative method
+anova(reduced)
+sseR = anova(reduced)['Residuals',2]
+dfR  = anova(reduced)['Residuals',1]
+
+sseF = anova(Model2)['Residuals',2]
+dfF  = anova(Model2)['Residuals',1]
+
+Fstar = ( (sseR-sseF)/(dfR-dfF) )/( sseF/dfF )
+1-pf(Fstar, dfR-dfF, dfF) # p-value is the same as calculated via the anova function
+```
+
+Since the p-value is much smaller than 0.01, we reject $H_0$, indicating that all terms involving $X_2$ may NOT be simultaneously dropped out of Model 2 at significance level 0.01. 
+
+
+* **(j) Find a model that has less regression coefficients AND a larger adjusted coefficient of multiple determination compared to Model 2.  Briefly explain how you reach this model. **<br>
+
+
+From the summary Table of Model 2, we can see that the p-value of the individual test $H_0:\beta_5=0$ vs $H_1:\beta_5\neq0$ is very large. Thus, the interaction term $X_1:X_2$ is not significant and can be dropped from the model. So, we propose a new model, Model 3:
+
+$$
+Y=\beta_0+\beta_1X_1+\beta_2X_1^2+\beta_3X_2+\beta_4X_2^2
+$$
+
+which has less regression coefficients $p=5$ compared to Model 2 ($p=6$). 
+
+```{r}
+summary(Model3)
+```
+
+The $R^2_a$ of Model 3 is 0.7747, which is slightly larger than that of Model 2 (0.7729). 
